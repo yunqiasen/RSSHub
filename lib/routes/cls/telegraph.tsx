@@ -60,6 +60,20 @@ export const route: Route = {
 | watch | announcement | red  | remind | fund | hk\\_us |`,
 };
 
+function articleLink(item): string | undefined {
+    if (/^[1-9]\d*$/.test(String(item.id || ''))) {
+        return `${rootUrl}/detail/${item.id}`;
+    }
+    try {
+        const url = new URL(item.shareurl);
+        if (['http:', 'https:'].includes(url.protocol) && ['www.cls.cn', 'cls.cn'].includes(url.hostname) && /^\/detail\/[1-9]\d*\/?$/.test(url.pathname)) {
+            return `${rootUrl}${url.pathname}`;
+        }
+    } catch {
+        // No trustworthy article identifier: omit the item instead of fabricating a permalink.
+    }
+}
+
 async function handler(ctx: Context) {
     const category = ctx.req.param('category');
     const limit = ctx.req.query('limit') ? Number.parseInt(ctx.req.query('limit')!) : 50;
@@ -78,13 +92,16 @@ async function handler(ctx: Context) {
         }),
     });
 
-    const items = response.data.roll_data.slice(0, limit).map((item) => ({
-        title: item.title || item.content,
-        link: item.shareurl,
-        description: renderTelegraphDescription(item),
-        pubDate: parseDate(item.ctime, 'X'),
-        category: item.subjects?.map((s) => s.subject_name),
-    }));
+    const items = response.data.roll_data
+        .slice(0, limit)
+        .map((item) => ({
+            title: item.title || item.content,
+            link: articleLink(item),
+            description: renderTelegraphDescription(item),
+            pubDate: parseDate(item.ctime, 'X'),
+            category: item.subjects?.map((s) => s.subject_name),
+        }))
+        .filter((item) => item.link);
 
     return {
         title: `财联社 - 电报${category ? ` - ${categories[category]}` : ''}`,
